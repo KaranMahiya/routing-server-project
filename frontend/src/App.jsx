@@ -12,7 +12,9 @@ function App() {
   const [targetPeer, setTargetPeer] = useState("");
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:3000");
+    const ws = new WebSocket(
+      "https://routing-backend-5dmc.onrender.com/"
+    );
 
     ws.onopen = () => {
       console.log("Connected");
