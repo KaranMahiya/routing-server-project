@@ -20,82 +20,74 @@ function App() {
 
   const [received, setReceived] = useState([]);
 
-  useEffect(() => {
-    let ws;
+  const connectWebSocket = () => {
+    setConnectionStatus("Connecting...");
 
-    const connectWebSocket = () => {
-      setConnectionStatus("Connecting...");
+    const ws = new WebSocket(
+      "wss://routing-backend-5dmc.onrender.com"
+    );
 
-      ws = new WebSocket(
-        "wss://routing-backend-5dmc.onrender.com"
-      );
+    ws.onopen = () => {
+      console.log("Connected");
 
-      ws.onopen = () => {
-        console.log("Connected");
+      setConnectionStatus("Connected");
 
-        setConnectionStatus("Connected");
+      setSocket(ws);
 
-        setSocket(ws);
-
-        // Auto-register if peerId exists
-        if (peerId) {
-          ws.send(
-            JSON.stringify({
-              type: "register",
-              peerId,
-            })
-          );
-
-          setRegistered(true);
-        }
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        console.log("Received:", data);
-
-        if (data.error) {
-          alert(data.error);
-          return;
-        }
-
-        if (data.payload) {
-          setReceived((prev) => [
-            ...prev,
-            `${data.from}: ${data.payload}`,
-          ]);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error(error);
-
-        setConnectionStatus(
-          "Connection Error"
-        );
-      };
-
-      ws.onclose = () => {
-        console.log("Disconnected");
-
-        setConnectionStatus(
-          "Disconnected"
+      // Auto-register after reconnect
+      if (peerId) {
+        ws.send(
+          JSON.stringify({
+            type: "register",
+            peerId,
+          })
         );
 
-        setTimeout(() => {
-          connectWebSocket();
-        }, 3000);
-      };
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (ws) {
-        ws.close();
+        setRegistered(true);
       }
     };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      console.log("Received:", data);
+
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      if (data.payload) {
+        setReceived((prev) => [
+          ...prev,
+          `${data.from}: ${data.payload}`,
+        ]);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+
+      setConnectionStatus(
+        "Connection Error"
+      );
+    };
+
+    ws.onclose = () => {
+      console.log("Disconnected");
+
+      setConnectionStatus(
+        "Disconnected - Reconnecting..."
+      );
+
+      setTimeout(() => {
+        connectWebSocket();
+      }, 3000);
+    };
+  };
+
+  useEffect(() => {
+    connectWebSocket();
   }, []);
 
   const registerPeer = () => {
