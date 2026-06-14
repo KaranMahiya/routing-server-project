@@ -7,67 +7,94 @@ const app = express();
 const server = http.createServer(app);
 
 const wss = new WebSocket.Server({
-  server
+  server,
 });
 
-const peers = new Map();
+const peers = {};
 
 app.get("/", (req, res) => {
   res.send("Server Running");
 });
 
 wss.on("connection", (ws) => {
+  console.log("New Connection");
 
-  let peerId = null;
+  ws.on("message", (message) => {
+    try {
+      const data = JSON.parse(message);
 
-  ws.isAlive = true;
+      if (data.type === "register") {
+        if (peers[data.peerId]) {
+          ws.send(
+            JSON.stringify({
+              error:
+                "Peer ID already exists. Choose another.",
+            })
+          );
+          return;
+        }
 
-  ws.on("pong", () => {
-    ws.isAlive = true;
-  });
+        peers[data.peerId] = ws;
 
-  ws.on("message", message => {
+        ws.peerId = data.peerId;
 
-    const data = JSON.parse(message);
+        console.log(
+          "Peer Registered:",
+          data.peerId
+        );
+      }
 
-    if (data.type === "register") {
+      if (data.type === "relay") {
+        const target = peers[data.to];
 
-      peerId = data.peerId;
+        if (target) {
+          target.send(
+            JSON.stringify({
+              from: data.from,
+              payload: data.payload,
+            })
+          );
 
-      peers.set(peerId, ws);
+          console.log(
+            `${data.from} -> ${data.to}`
+          );
+        } else {
+          ws.send(
+            JSON.stringify({
+              error: "Target Peer Not Found",
+            })
+          );
+        }
+      }
 
-      console.log("Peer Registered:", peerId);
-    }
-
-    if (data.type === "relay") {
-
-      const target = peers.get(data.to);
-
-      if (target) {
-
-        target.send(
+      if (data.type === "ping") {
+        ws.send(
           JSON.stringify({
-            from: data.from,
-            payload: data.payload
+            type: "pong",
           })
         );
-
       }
+    } catch (err) {
+      console.log(err);
     }
   });
 
   ws.on("close", () => {
+    if (ws.peerId) {
+      delete peers[ws.peerId];
 
-    if (peerId) {
-      peers.delete(peerId);
+      console.log(
+        "Disconnected:",
+        ws.peerId
+      );
     }
-
   });
-
 });
 
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  console.log("Server Running On Port", PORT);
+  console.log(
+    `Server Running On Port ${PORT}`
+  );
 });
