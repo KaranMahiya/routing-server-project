@@ -20,6 +20,9 @@ function App() {
 
   const [received, setReceived] = useState([]);
 
+  const [lastPong, setLastPong] =
+    useState("Never");
+
   const connectWebSocket = () => {
     setConnectionStatus("Connecting...");
 
@@ -45,12 +48,38 @@ function App() {
 
         setRegistered(true);
       }
+
+      // Heartbeat every 30 seconds
+      setInterval(() => {
+        if (
+          ws.readyState === WebSocket.OPEN
+        ) {
+          ws.send(
+            JSON.stringify({
+              type: "ping",
+            })
+          );
+
+          console.log("PING sent");
+        }
+      }, 30000);
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
       console.log("Received:", data);
+
+      // Handle heartbeat response
+      if (data.type === "pong") {
+        setLastPong(
+          new Date().toLocaleTimeString()
+        );
+
+        console.log("PONG received");
+
+        return;
+      }
 
       if (data.error) {
         alert(data.error);
@@ -66,7 +95,10 @@ function App() {
     };
 
     ws.onerror = (error) => {
-      console.error("WebSocket Error:", error);
+      console.error(
+        "WebSocket Error:",
+        error
+      );
 
       setConnectionStatus(
         "Connection Error"
@@ -215,6 +247,10 @@ function App() {
         {registered
           ? " ✅ Registered"
           : " ❌ Not Registered"}
+      </p>
+
+      <p>
+        Last Heartbeat: {lastPong}
       </p>
 
       <hr />
