@@ -3,55 +3,109 @@ import { useEffect, useState } from "react";
 function App() {
   const [socket, setSocket] = useState(null);
 
+  const [connectionStatus, setConnectionStatus] =
+    useState("Connecting...");
+
   const [peerId, setPeerId] = useState(
     localStorage.getItem("peerId") || ""
   );
 
-  const [registered, setRegistered] = useState(false);
+  const [registered, setRegistered] =
+    useState(false);
 
-  const [targetPeer, setTargetPeer] = useState("");
+  const [targetPeer, setTargetPeer] =
+    useState("");
 
   const [message, setMessage] = useState("");
 
   const [received, setReceived] = useState([]);
 
   useEffect(() => {
-    const ws = new WebSocket(
-      "wss://routing-backend-5dmc.onrender.com"
-    );
+    let ws;
 
-    ws.onopen = () => {
-      console.log("Connected to server");
+    const connectWebSocket = () => {
+      setConnectionStatus("Connecting...");
+
+      ws = new WebSocket(
+        "wss://routing-backend-5dmc.onrender.com"
+      );
+
+      ws.onopen = () => {
+        console.log("Connected");
+
+        setConnectionStatus("Connected");
+
+        setSocket(ws);
+
+        // Auto-register if peerId exists
+        if (peerId) {
+          ws.send(
+            JSON.stringify({
+              type: "register",
+              peerId,
+            })
+          );
+
+          setRegistered(true);
+        }
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        console.log("Received:", data);
+
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+
+        if (data.payload) {
+          setReceived((prev) => [
+            ...prev,
+            `${data.from}: ${data.payload}`,
+          ]);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error(error);
+
+        setConnectionStatus(
+          "Connection Error"
+        );
+      };
+
+      ws.onclose = () => {
+        console.log("Disconnected");
+
+        setConnectionStatus(
+          "Disconnected"
+        );
+
+        setTimeout(() => {
+          connectWebSocket();
+        }, 3000);
+      };
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    connectWebSocket();
 
-      if (data.error) {
-        alert(data.error);
-        return;
+    return () => {
+      if (ws) {
+        ws.close();
       }
-
-      if (data.payload) {
-        setReceived((prev) => [
-          ...prev,
-          `${data.from}: ${data.payload}`,
-        ]);
-      }
     };
-
-    ws.onclose = () => {
-      console.log("Disconnected");
-    };
-
-    setSocket(ws);
-
-    return () => ws.close();
   }, []);
 
   const registerPeer = () => {
-    if (!socket) {
-      alert("Socket not connected");
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
+      alert(
+        "Not connected to server"
+      );
       return;
     }
 
@@ -67,12 +121,25 @@ function App() {
       })
     );
 
-    localStorage.setItem("peerId", peerId);
+    localStorage.setItem(
+      "peerId",
+      peerId
+    );
 
     setRegistered(true);
   };
 
   const sendMessage = () => {
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
+      alert(
+        "Not connected to server"
+      );
+      return;
+    }
+
     if (!registered) {
       alert("Register first");
       return;
@@ -108,7 +175,26 @@ function App() {
         margin: "auto",
       }}
     >
-      <h1>Distributed Routing Server</h1>
+      <h1>
+        Distributed Routing Server
+      </h1>
+
+      <p
+        style={{
+          fontWeight: "bold",
+          fontSize: "18px",
+          color:
+            connectionStatus ===
+            "Connected"
+              ? "green"
+              : connectionStatus ===
+                "Connecting..."
+              ? "orange"
+              : "red",
+        }}
+      >
+        Status: {connectionStatus}
+      </p>
 
       <hr />
 
@@ -118,18 +204,22 @@ function App() {
         type="text"
         placeholder="Enter Peer ID"
         value={peerId}
-        onChange={(e) => setPeerId(e.target.value)}
+        onChange={(e) =>
+          setPeerId(e.target.value)
+        }
       />
 
       <button
         onClick={registerPeer}
-        style={{ marginLeft: "10px" }}
+        style={{
+          marginLeft: "10px",
+        }}
       >
         Register
       </button>
 
       <p>
-        Status:
+        Registration:
         {registered
           ? " ✅ Registered"
           : " ❌ Not Registered"}
@@ -144,7 +234,9 @@ function App() {
         placeholder="Target Peer ID"
         value={targetPeer}
         onChange={(e) =>
-          setTargetPeer(e.target.value)
+          setTargetPeer(
+            e.target.value
+          )
         }
       />
 
@@ -156,36 +248,46 @@ function App() {
         placeholder="Enter Message"
         value={message}
         onChange={(e) =>
-          setMessage(e.target.value)
+          setMessage(
+            e.target.value
+          )
         }
       />
 
       <button
         onClick={sendMessage}
-        style={{ marginLeft: "10px" }}
+        style={{
+          marginLeft: "10px",
+        }}
       >
         Send
       </button>
 
       <hr />
 
-      <h3>Received Messages</h3>
+      <h3>
+        Received Messages
+      </h3>
 
       {received.length === 0 ? (
         <p>No messages yet</p>
       ) : (
-        received.map((msg, index) => (
-          <div
-            key={index}
-            style={{
-              border: "1px solid #ccc",
-              padding: "8px",
-              marginBottom: "5px",
-            }}
-          >
-            {msg}
-          </div>
-        ))
+        received.map(
+          (msg, index) => (
+            <div
+              key={index}
+              style={{
+                border:
+                  "1px solid #ccc",
+                padding: "8px",
+                marginBottom:
+                  "5px",
+              }}
+            >
+              {msg}
+            </div>
+          )
+        )
       )}
     </div>
   );
