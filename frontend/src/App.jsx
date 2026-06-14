@@ -17,7 +17,7 @@ function App() {
 
   useEffect(() => {
     const ws = new WebSocket(
-      "wss://routing-server-project.onrender.com"
+      "wss://routing-backend-5dmc.onrender.com"
     );
 
     ws.onopen = () => {
